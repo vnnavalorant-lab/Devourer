@@ -14,6 +14,8 @@ import net.minecraft.client.render.entity.feature.FeatureRendererContext;
 import net.minecraft.client.render.entity.model.PlayerEntityModel;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
+import com.devourer.client.ClientTentacles;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -32,6 +34,10 @@ import java.util.UUID;
  */
 public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntity, PlayerEntityModel<AbstractClientPlayerEntity>> {
     private final Map<UUID, Vector3f> drag = new HashMap<>();
+    /** Quanto um tentáculo pode se esticar (x o comprimento normal) para alcançar alvos distantes das habilidades. */
+    private static final float MAX_STRETCH = 7f;
+    /** Eixo de cada bone de tentáculo (para esticar a geometria ao longo dele). */
+    private Vector3f[] axisOf;
 
     // ---- pupila ("pupil"): segue a câmera sem sair da janela da casca do focinho ----
     // A janela da casca tem 6x6px e a pupila 4x4px (centrada). Pelo desenho da textura, a borda de cima é opaca
@@ -69,10 +75,54 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
 
         float agitation = Math.min(1.5f, limbDistance * 2f);
         Quaternionf[] ik = new Quaternionf[model.bones.size()];
-        for (Chain c : model.chains) solve(model, c, t, agitation, d, ik);
+        float[] stretch = new float[model.bones.size()];
+        java.util.Arrays.fill(stretch, 1f);
+        if (axisOf == null || axisOf.length != model.bones.size()) {
+            axisOf = new Vector3f[model.bones.size()];
+            for (Chain c : model.chains) for (int b : c.bones) axisOf[b] = c.axis;
+        }
+
+        // habilidades: o servidor manda o alvo (no mundo) de cada tentáculo; sem dados, animação normal
+        ClientTentacles.View view = ClientTentacles.get(pl.getUuid(), pl.getWorld().getTime());
+        Vec3d ep = pl.getLerpedPos(tickDelta);
+        for (int ci = 0; ci < model.chains.size(); ci++) {
+            Chain c = model.chains.get(ci);
+            Vector3f forced = null;
+            float ag = agitation;
+            boolean nervous = false;
+            if (view != null && ci < 4) {
+                switch (view.mode[ci]) {
+                    case 1 -> { // alvo no mundo (vítima, ponto da parede, projétil...)
+                        Vec3d tg = view.target[ci];
+                        if (tg != null) {
+                            Vec3d from = view.cur[ci] != null ? view.cur[ci] : ep.add(0, 1.3, 0);
+                            Vec3d cur = from.lerp(tg, 0.4); // o alvo "salta" em poucos frames em vez de teleportar
+                            view.cur[ci] = cur;
+                            forced = worldToChain(model, c, cur, ep, bodyYaw);
+                            ag = 1.5f;
+                        }
+                    }
+                    case 2 -> { // Raízes: deitado no chão, serpenteando ao redor do jogador
+                        double ang = ci * Math.PI / 2 + Math.PI / 4 + Math.sin(t * 0.04 + ci) * 0.5;
+                        double rad = 1.2 + 0.35 * Math.sin(t * 0.09 + ci * 1.3);
+                        Vec3d g = new Vec3d(ep.x + Math.cos(ang) * rad, ep.y + 0.05, ep.z + Math.sin(ang) * rad);
+                        forced = worldToChain(model, c, g, ep, bodyYaw);
+                        ag = 0.6f;
+                    }
+                    case 3 -> { // Inquietação: tremores e espasmos
+                        nervous = true;
+                        ag = 1.5f;
+                    }
+                    default -> {
+                    }
+                }
+            }
+            float k = solve(model, c, t, ag, d, ik, forced, nervous);
+            for (int b : c.bones) stretch[b] = k;
+        }
 
         int overlay = LivingEntityRenderer.getOverlay(pl, 0.0f);
-        for (int root : model.roots) renderBone(model, root, m, vcp, light, overlay, ik, pl.getUuid());
+        for (int root : model.roots) renderBone(model, root, m, vcp, light, overlay, ik, stretch, pl.getUuid());
     }
 
     // ------------------------------------------------------------------ render
@@ -91,7 +141,7 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
     }
 
     private void renderBone(ZombieFormModel model, int idx, MatrixStack m, VertexConsumerProvider vcp,
-                            int light, int overlay, Quaternionf[] ik, UUID id) {
+                            int light, int overlay, Quaternionf[] ik, float[] stretch, UUID id) {
         Bone b = model.bones.get(idx);
         m.push();
         ModelPart v = b.parent < 0 ? vanilla(b.name) : null;
@@ -102,7 +152,8 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
             m.multiply(b.staticRot);
         } else {
             Bone p = model.bones.get(b.parent);
-            m.translate((b.px - p.px) / 16f, (b.py - p.py) / 16f, (b.pz - p.pz) / 16f);
+            float ks = stretch[b.parent]; // filho de um segmento esticado fica mais longe
+            m.translate((b.px - p.px) * ks / 16f, (b.py - p.py) * ks / 16f, (b.pz - p.pz) * ks / 16f);
             m.multiply(b.staticRot);
         }
         if (ik[idx] != null) m.multiply(ik[idx]);
@@ -114,13 +165,24 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
             Matrix3f nm = e.getNormalMatrix();
             int cur = -1;
             VertexConsumer vc = null;
+            float sk = stretch[idx];
+            Vector3f ax = sk > 1.001f ? axisOf[idx] : null;
+            float thin = 1f / (float) Math.sqrt(sk); // esticou: afina, para não virar um cano grosso
             for (Quad q : b.quads) {
                 if (q.tex != cur) {
                     cur = q.tex;
                     vc = vcp.getBuffer(RenderLayer.getArmorCutoutNoCull(model.textures[cur]));
                 }
                 for (int k = 0; k < 4; k++) {
-                    vc.vertex(pm, q.p[k * 3] / 16f, q.p[k * 3 + 1] / 16f, q.p[k * 3 + 2] / 16f)
+                    float vx = q.p[k * 3] / 16f, vy = q.p[k * 3 + 1] / 16f, vz = q.p[k * 3 + 2] / 16f;
+                    if (ax != null) {
+                        float al = vx * ax.x + vy * ax.y + vz * ax.z;
+                        float qx = vx - ax.x * al, qy = vy - ax.y * al, qz = vz - ax.z * al;
+                        vx = qx * thin + ax.x * al * sk;
+                        vy = qy * thin + ax.y * al * sk;
+                        vz = qz * thin + ax.z * al * sk;
+                    }
+                    vc.vertex(pm, vx, vy, vz)
                             .color(1f, 1f, 1f, 1f)
                             .texture(q.uv[k * 2], q.uv[k * 2 + 1])
                             .overlay(overlay)
@@ -130,7 +192,7 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
                 }
             }
         }
-        for (int c : b.children) renderBone(model, c, m, vcp, light, overlay, ik, id);
+        for (int c : b.children) renderBone(model, c, m, vcp, light, overlay, ik, stretch, id);
         m.pop();
     }
 
@@ -162,33 +224,65 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
 
     // ------------------------------------------------------------------ IK (FABRIK)
 
-    private static void solve(ZombieFormModel model, Chain c, float t, float agitation, Vector3f drag, Quaternionf[] out) {
+    /** Ponto do mundo -> espaço local da raiz do tentáculo (em px). Ignora a inclinação do corpo ao agachar. */
+    private static Vector3f worldToChain(ZombieFormModel model, Chain c, Vec3d world, Vec3d entityPos, float bodyYaw) {
+        Vector3f w = new Vector3f((float) (world.x - entityPos.x), (float) (world.y - entityPos.y), (float) (world.z - entityPos.z));
+        w.rotateY(-(float) Math.toRadians(180f - bodyYaw)); // mesma conversão usada para a inércia acima
+        w.x = -w.x;
+        w.y = -w.y;
+        w.y += 1.501f; // origem do modelo fica 1.501 bloco acima dos pés, com +y para baixo
+        w.mul(16f);
+        Bone root = model.bones.get(c.bones[0]);
+        w.sub(root.px, root.py, root.pz);
+        return w.rotate(new Quaternionf(root.staticRot).conjugate());
+    }
+
+    /**
+     * Resolve a corrente. {@code forced} (espaço local da raiz, px) substitui o alvo animado; se estiver além do
+     * alcance, o tentáculo se estica (até MAX_STRETCH x) e o fator de esticamento é devolvido.
+     */
+    private static float solve(ZombieFormModel model, Chain c, float t, float agitation, Vector3f drag, Quaternionf[] out,
+                               Vector3f forced, boolean nervous) {
         int n = c.bones.length;
         Bone rootBone = model.bones.get(c.bones[0]);
         float ph = c.phase;
 
-        // alvo no espaço local da raiz do tentáculo (a ponta "ik" tenta alcançá-lo)
-        float amp = 6f + 6f * agitation;
-        Vector3f local = new Vector3f(drag).rotate(new Quaternionf(rootBone.staticRot).conjugate());
-        Vector3f target = new Vector3f(c.axis).mul(c.total * 0.72f)
-                .add(amp * (float) Math.sin(t * 0.11f + ph),
-                        amp * 0.55f * (float) Math.sin(t * 0.07f + ph * 1.7f + 1f),
-                        amp * (float) Math.cos(t * 0.09f + ph * 0.6f))
-                .add(local);
+        float k = 1f;
+        Vector3f target;
+        if (forced != null) {
+            target = new Vector3f(forced);
+            k = MathHelper.clamp(target.length() / c.total, 1f, MAX_STRETCH);
+        } else {
+            // alvo no espaço local da raiz do tentáculo (a ponta "ik" tenta alcançá-lo)
+            float amp = 6f + 6f * agitation;
+            Vector3f local = new Vector3f(drag).rotate(new Quaternionf(rootBone.staticRot).conjugate());
+            target = new Vector3f(c.axis).mul(c.total * 0.72f)
+                    .add(amp * (float) Math.sin(t * 0.11f + ph),
+                            amp * 0.55f * (float) Math.sin(t * 0.07f + ph * 1.7f + 1f),
+                            amp * (float) Math.cos(t * 0.09f + ph * 0.6f))
+                    .add(local);
+            if (nervous) {
+                target.add(7f * (float) Math.sin(t * 0.9f + ph * 3f), 5f * (float) Math.sin(t * 1.3f + ph),
+                        7f * (float) Math.cos(t * 1.1f + ph * 2f));
+            }
+        }
+        float total = c.total * k;
+        float[] len = new float[n];
+        for (int i = 0; i < n; i++) len[i] = c.len[i] * k;
 
         Vector3f[] p = new Vector3f[n + 1];
         p[0] = new Vector3f();
-        for (int i = 0; i < n; i++) p[i + 1] = new Vector3f(c.axis).mul(c.len[i]).add(p[i]);
+        for (int i = 0; i < n; i++) p[i + 1] = new Vector3f(c.axis).mul(len[i]).add(p[i]);
 
-        if (target.length() >= c.total) {
-            target.normalize(c.total);
-            for (int i = 0; i < n; i++) p[i + 1].set(p[i]).fma(c.len[i], new Vector3f(target).normalize());
+        if (target.length() >= total) {
+            target.normalize(total);
+            for (int i = 0; i < n; i++) p[i + 1].set(p[i]).fma(len[i], new Vector3f(target).normalize());
         } else {
             for (int it = 0; it < 8; it++) {
                 p[n].set(target);
-                for (int i = n - 1; i >= 0; i--) pull(p[i], p[i + 1], c.len[i]);
+                for (int i = n - 1; i >= 0; i--) pull(p[i], p[i + 1], len[i]);
                 p[0].zero();
-                for (int i = 0; i < n; i++) pull(p[i + 1], p[i], c.len[i]);
+                for (int i = 0; i < n; i++) pull(p[i + 1], p[i], len[i]);
             }
         }
 
@@ -206,6 +300,7 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
             out[c.bones[i]] = l;
             prev.mul(l);
         }
+        return k;
     }
 
     /** Move {@code a} para ficar a {@code len} de {@code b}, na mesma direção. */

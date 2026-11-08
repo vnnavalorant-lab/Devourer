@@ -1,4 +1,7 @@
 {
   "key.devourer.abilities": "Abrir habilidades mutantes",
-  "key.categories.devourer": "Devourer"
+  "key.categories.devourer": "Devourer",
+  "key.devourer.tentacle_use": "Usar habilidade de tentáculo (segurar/alternar)",
+  "key.devourer.tentacle_next": "Próxima habilidade de tentáculo",
+  "key.devourer.tentacle_prev": "Habilidade de tentáculo anterior"
 }

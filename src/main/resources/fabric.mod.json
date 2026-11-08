@@ -28,6 +28,7 @@
     {
       "config": "devourer.mixins.json",
       "environment": "client"
-    }
+    },
+    "devourer.common.mixins.json"
   ]
 }

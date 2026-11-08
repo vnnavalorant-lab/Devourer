@@ -26,6 +26,7 @@ public class DevourerMod implements ModInitializer {
     public void onInitialize() {
         ModParticles.register();
         Commands.register();
+        com.devourer.tentacle.TentacleManager.register();
 
         // Matou uma criatura -> devora
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {

@@ -1,4 +1,7 @@
 {
   "key.devourer.abilities": "Open mutant abilities",
-  "key.categories.devourer": "Devourer"
+  "key.categories.devourer": "Devourer",
+  "key.devourer.tentacle_use": "Use selected tentacle ability (hold/toggle)",
+  "key.devourer.tentacle_next": "Next tentacle ability",
+  "key.devourer.tentacle_prev": "Previous tentacle ability"
 }

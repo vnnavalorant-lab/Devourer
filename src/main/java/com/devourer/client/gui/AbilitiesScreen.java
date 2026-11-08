@@ -5,6 +5,8 @@ import com.devourer.PlayerDevour;
 import com.devourer.client.ClientData;
 import com.devourer.client.gui.AbilityData.Ability;
 import com.devourer.client.gui.AbilityData.Category;
+import com.devourer.tentacle.Catalog;
+import com.devourer.tentacle.TentacleAbility;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -36,6 +38,7 @@ public class AbilitiesScreen extends Screen {
 
     private final AbilityData data = AbilityData.load();
     private final Set<String> owned = new HashSet<>();
+    private PlayerDevour mine = new PlayerDevour();
 
     private int catIndex = 0; // 0 = Todas
     private List<Ability> shown = new ArrayList<>();
@@ -55,7 +58,10 @@ public class AbilitiesScreen extends Screen {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.player != null) {
             PlayerDevour d = ClientData.DATA.get(mc.player.getUuid());
-            if (d != null) for (DevourPart p : d.parts) owned.add(p.species());
+            if (d != null) {
+                mine = d;
+                for (DevourPart p : d.parts) owned.add(p.species());
+            }
         }
 
         // abas de categoria (quebram em mais linhas se faltar largura)
@@ -109,6 +115,11 @@ public class AbilitiesScreen extends Screen {
         return all ? have == a.mobs().size() : have > 0;
     }
 
+    private static TentacleAbility functional(Ability a) {
+        for (TentacleAbility t : TentacleAbility.ALL) if (t.id.equals(a.id())) return t;
+        return null;
+    }
+
     private static String mobName(String id) {
         try {
             Identifier i = new Identifier(id);
@@ -141,6 +152,20 @@ public class AbilitiesScreen extends Screen {
         if (available(a)) wrap("Você tem os membros necessários no corpo.", GREEN);
         else wrap("Ainda não disponível: devore " + String.join(", ", names) + all + ".", 0xFFFF8855);
 
+        TentacleAbility fn = functional(a);
+        if (fn != null) {
+            int lvl = Catalog.level(mine, fn);
+            String how = switch (fn.mode) {
+                case HOLD -> "segure a tecla de uso";
+                case PRESS -> "aperte a tecla de uso";
+                case TOGGLE -> "aperte a tecla de uso para ligar/desligar";
+            };
+            wrap("FUNCIONAL EM JOGO. Nível atual: " + lvl + "/3 (cada mob diferente da lista abaixo que você devorou sobe 1 nível). "
+                    + "Selecione com V (ou a tecla \"anterior\") e " + how + " (padrão R).", lvl > 0 ? GREEN : 0xFFFF8855);
+        } else {
+            wrap("Ainda só catálogo: esta habilidade não é executada em jogo.", 0xFF888888);
+        }
+
         section("Origem anatômica", a.origin());
         section("Funcionamento", a.desc());
         section("Animação", a.anim());
@@ -172,7 +197,7 @@ public class AbilitiesScreen extends Screen {
         renderBackground(ctx);
         ctx.drawCenteredTextWithShadow(textRenderer, title, width / 2, 8, 0xFFFFFFFF);
         ctx.drawCenteredTextWithShadow(textRenderer,
-                Text.literal("Catálogo de habilidades — ainda em desenvolvimento (não funcionais em jogo)").formatted(Formatting.GRAY),
+                Text.literal("Catálogo de habilidades — as de tentáculo (9) já funcionam em jogo; as demais ainda são só catálogo").formatted(Formatting.GRAY),
                 width / 2, 20, 0xFFAAAAAA);
 
         // lista
