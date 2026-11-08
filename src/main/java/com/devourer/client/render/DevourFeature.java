@@ -37,7 +37,7 @@ import java.util.Random;
  * Os membros são os ModelParts REAIS do modelo do mob (braço, perna, cauda...), tirados da camada de modelo
  * do próprio mob, e desenhados com a textura que o renderer desse mob usa. Assim o UV e a textura ficam corretos.
  *
- * Posições permitidas: costas, braços e pernas. Nunca a cabeça.
+ * Posições: pontos fixos de {@link Mount} espalhados por costas, ombros, laterais do tronco, braços e pernas. Nunca a cabeça.
  */
 public class DevourFeature extends FeatureRenderer<AbstractClientPlayerEntity, PlayerEntityModel<AbstractClientPlayerEntity>> {
     private enum Kind {ARM, LEG, OTHER}
@@ -85,43 +85,27 @@ public class DevourFeature extends FeatureRenderer<AbstractClientPlayerEntity, P
             MobLimbs mob = resolve(part.species());
             if (mob.limbs().isEmpty()) continue;
 
-            // todos os sorteios em ordem fixa, para a posição ser sempre a mesma para a mesma seed
+            // sorteios em ordem fixa: a mesma seed sempre dá o mesmo membro e a mesma variação
             Random r = new Random(part.seed());
             float rPick = r.nextFloat();
-            float rA = r.nextFloat(), rB = r.nextFloat(), rC = r.nextFloat(), rD = r.nextFloat();
-            boolean rSide = r.nextBoolean();
+            float rA = r.nextFloat(), rB = r.nextFloat(), rC = r.nextFloat();
 
-            Limb limb = pick(mob.limbs(), part.mount(), rPick);
+            Mount mt = part.mount();
+            Limb limb = pick(mob.limbs(), mt, rPick);
             float wig = (float) Math.sin(t * 0.12f + (part.seed() & 255)) * 0.09f;
 
             m.push();
-            switch (part.mount()) {
-                case BACK -> {
-                    pm.body.rotate(m);
-                    float side = rSide ? 1f : -1f;
-                    float x = side * (0.8f + rA * 2.8f);          // espalhados pelas costas
-                    float y = 1.5f + rB * 8f;                      // da altura dos ombros até a cintura
-                    m.translate(x / 16f, y / 16f, 2.4f / 16f);    // z+ = atrás do corpo
-                    m.multiply(RotationAxis.POSITIVE_Z.rotation(-side * (0.25f + rC * 0.9f) + wig));
-                    m.multiply(RotationAxis.POSITIVE_X.rotation(0.7f + rD * 0.9f + wig * 0.7f)); // saem para trás e para baixo
-                }
-                case ARM_R, ARM_L -> {
-                    boolean right = part.mount() == Mount.ARM_R;
-                    (right ? pm.rightArm : pm.leftArm).rotate(m);
-                    float out = right ? -1f : 1f;                  // -x = lado de fora do braço direito
-                    m.translate(out * 4.2f / 16f, (rA * 3f) / 16f, ((rB - 0.5f) * 3f) / 16f);
-                    m.multiply(RotationAxis.POSITIVE_Z.rotation(-out * (0.12f + rC * 0.5f) + wig));
-                    m.multiply(RotationAxis.POSITIVE_X.rotation((rD - 0.5f) * 0.6f + wig * 0.7f));
-                }
-                default -> { // LEG_R, LEG_L
-                    boolean right = part.mount() == Mount.LEG_R;
-                    (right ? pm.rightLeg : pm.leftLeg).rotate(m);
-                    float out = right ? -1f : 1f;
-                    m.translate(out * 3.8f / 16f, 0f, ((rB - 0.5f) * 2f) / 16f);
-                    m.multiply(RotationAxis.POSITIVE_Z.rotation(-out * (0.08f + rC * 0.4f) + wig));
-                    m.multiply(RotationAxis.POSITIVE_X.rotation((rD - 0.5f) * 0.4f + wig * 0.7f));
-                }
+            switch (mt.attach) {
+                case BODY -> pm.body.rotate(m);
+                case ARM_R -> pm.rightArm.rotate(m);
+                case ARM_L -> pm.leftArm.rotate(m);
+                case LEG_R -> pm.rightLeg.rotate(m);
+                case LEG_L -> pm.leftLeg.rotate(m);
             }
+            // ponto fixo do corpo + pequena variação por seed, para duplicados não ficarem idênticos
+            m.translate(mt.x / 16f, (mt.y + (rA - 0.5f)) / 16f, mt.z / 16f);
+            m.multiply(RotationAxis.POSITIVE_Z.rotation(mt.rz + (rB - 0.5f) * 0.25f + wig));
+            m.multiply(RotationAxis.POSITIVE_X.rotation(mt.rx + (rC - 0.5f) * 0.25f + wig * 0.7f));
             m.scale(limb.scale(), limb.scale(), limb.scale());
 
             VertexConsumer vc = vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(mob.texture()));
@@ -130,9 +114,9 @@ public class DevourFeature extends FeatureRenderer<AbstractClientPlayerEntity, P
         }
     }
 
-    /** Braços preferem braços do mob, pernas preferem pernas; nas costas vale qualquer membro. */
+    /** Braços preferem braços do mob, pernas preferem pernas; no corpo vale qualquer membro. */
     private static Limb pick(List<Limb> limbs, Mount mount, float r) {
-        Kind want = switch (mount) {
+        Kind want = switch (mount.attach) {
             case ARM_R, ARM_L -> Kind.ARM;
             case LEG_R, LEG_L -> Kind.LEG;
             default -> null;

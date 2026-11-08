@@ -8,11 +8,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PlayerDevour {
-    public static final int MAX_PARTS = 14;
+    /** Um membro por ponto do corpo. */
+    public static final int MAX_PARTS = Mount.values().length;
 
     public final List<DevourPart> parts = new ArrayList<>();
     /** Modelo zombie_form sobre o jogador (comando /infectado on|off). */
     public boolean infected = true;
+
+    /** Próximo ponto livre do corpo; se todos estiverem ocupados, substitui o membro mais antigo. */
+    public Mount nextSlot() {
+        for (Mount m : Mount.values()) {
+            boolean used = false;
+            for (DevourPart p : parts) {
+                if (p.mount() == m) {
+                    used = true;
+                    break;
+                }
+            }
+            if (!used) return m;
+        }
+        return parts.remove(0).mount();
+    }
 
     public NbtCompound toNbt() {
         NbtCompound n = new NbtCompound();

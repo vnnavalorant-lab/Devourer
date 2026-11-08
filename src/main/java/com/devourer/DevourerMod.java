@@ -19,6 +19,8 @@ import net.minecraft.util.Formatting;
 
 public class DevourerMod implements ModInitializer {
     public static final String ID = "devourer";
+    /** Quantos membros cada criatura devorada adiciona (podem ser do mesmo mob, ficam em pontos diferentes do corpo). */
+    public static final int PARTS_PER_KILL = 3;
 
     @Override
     public void onInitialize() {
@@ -48,9 +50,9 @@ public class DevourerMod implements ModInitializer {
         DevourState st = DevourState.of(server);
         PlayerDevour d = st.get(player.getUuid());
 
-        Mount mount = Mount.random(victim.getRandom());
-        d.parts.add(new DevourPart(id, mount, victim.getRandom().nextInt()));
-        while (d.parts.size() > PlayerDevour.MAX_PARTS) d.parts.remove(0);
+        for (int i = 0; i < PARTS_PER_KILL; i++) {
+            d.parts.add(new DevourPart(id, d.nextSlot(), victim.getRandom().nextInt()));
+        }
         st.markDirty();
 
         ServerWorld w = (ServerWorld) victim.getWorld();
@@ -62,7 +64,7 @@ public class DevourerMod implements ModInitializer {
 
         MutableText msg = Text.literal("Devorou ").formatted(Formatting.DARK_RED)
                 .append(victim.getName().copy().formatted(Formatting.WHITE))
-                .append(Text.literal("  [" + mount.label + "]").formatted(Formatting.GRAY));
+                .append(Text.literal("  [+" + PARTS_PER_KILL + " membros]").formatted(Formatting.GRAY));
         player.sendMessage(msg, true);
 
         Net.syncToAll(player);
