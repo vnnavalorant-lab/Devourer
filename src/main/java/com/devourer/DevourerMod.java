@@ -3,7 +3,6 @@ package com.devourer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.EntityTrackingEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.entity.LivingEntity;
@@ -24,7 +23,6 @@ public class DevourerMod implements ModInitializer {
     @Override
     public void onInitialize() {
         ModParticles.register();
-        Net.registerServer();
         Commands.register();
 
         // Matou uma criatura -> devora
@@ -32,15 +30,6 @@ public class DevourerMod implements ModInitializer {
             if (entity instanceof PlayerEntity) return;
             if (!(source.getAttacker() instanceof ServerPlayerEntity player)) return;
             devour(player, entity);
-        });
-
-        // Passivas dos poderes
-        ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.getTicks() % 40 != 0) return;
-            DevourState st = DevourState.of(server);
-            for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
-                Powers.applyPassives(p, st.get(p.getUuid()));
-            }
         });
 
         // Sincronização para o render dos outros jogadores
@@ -59,11 +48,9 @@ public class DevourerMod implements ModInitializer {
         DevourState st = DevourState.of(server);
         PlayerDevour d = st.get(player.getUuid());
 
-        PartType type = PartType.random(victim.getRandom());
-        d.parts.add(new DevourPart(id, type, victim.getRandom().nextInt()));
+        Mount mount = Mount.random(victim.getRandom());
+        d.parts.add(new DevourPart(id, mount, victim.getRandom().nextInt()));
         while (d.parts.size() > PlayerDevour.MAX_PARTS) d.parts.remove(0);
-
-        boolean fresh = d.powers.add(id); // só 1 poder por espécie
         st.markDirty();
 
         ServerWorld w = (ServerWorld) victim.getWorld();
@@ -75,10 +62,7 @@ public class DevourerMod implements ModInitializer {
 
         MutableText msg = Text.literal("Devorou ").formatted(Formatting.DARK_RED)
                 .append(victim.getName().copy().formatted(Formatting.WHITE))
-                .append(Text.literal("  [" + type.label + "]").formatted(Formatting.GRAY));
-        if (fresh) {
-            msg.append(Text.literal("  + " + Powers.get(id).name()).formatted(Formatting.GOLD, Formatting.BOLD));
-        }
+                .append(Text.literal("  [" + mount.label + "]").formatted(Formatting.GRAY));
         player.sendMessage(msg, true);
 
         Net.syncToAll(player);

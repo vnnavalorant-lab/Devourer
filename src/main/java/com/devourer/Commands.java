@@ -4,7 +4,6 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
@@ -12,12 +11,9 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * /infectado on|off  -> liga/desliga o modelo zombie_form que cobre o jogador
- * /devorar limpar    -> remove os modelos adicionais (partes de outros mobs) e todos os poderes adquiridos
+ * /devorar limpar    -> remove os membros de outros mobs colados no corpo
  */
 public final class Commands {
 
@@ -52,23 +48,11 @@ public final class Commands {
         PlayerDevour d = st.get(p.getUuid());
 
         int parts = d.parts.size();
-        int powers = d.powers.size();
-
-        // tira também os efeitos passivos que esses poderes estavam concedendo
-        List<StatusEffect> toRemove = new ArrayList<>();
-        for (String key : d.powers) {
-            StatusEffect e = Powers.get(key).passive();
-            if (e != null) toRemove.add(e);
-        }
-        toRemove.forEach(p::removeStatusEffect);
-
         d.parts.clear();
-        d.powers.clear();
-        d.selected = 0;
         st.markDirty();
         Net.syncToAll(p);
 
-        c.getSource().sendFeedback(() -> Text.literal("Removidas " + parts + " parte(s) e " + powers + " poder(es).")
+        c.getSource().sendFeedback(() -> Text.literal("Removido(s) " + parts + " membro(s).")
                 .formatted(Formatting.GRAY), false);
         return 1;
     }

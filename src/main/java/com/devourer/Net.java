@@ -10,15 +10,6 @@ import net.minecraft.util.Identifier;
 
 public final class Net {
     public static final Identifier SYNC = new Identifier(DevourerMod.ID, "sync");
-    public static final Identifier ACTIVATE = new Identifier(DevourerMod.ID, "activate");
-    public static final Identifier CYCLE = new Identifier(DevourerMod.ID, "cycle");
-
-    public static void registerServer() {
-        ServerPlayNetworking.registerGlobalReceiver(ACTIVATE,
-                (server, player, handler, buf, sender) -> server.execute(() -> Powers.activate(player)));
-        ServerPlayNetworking.registerGlobalReceiver(CYCLE,
-                (server, player, handler, buf, sender) -> server.execute(() -> Powers.cycle(player)));
-    }
 
     /** Envia os dados de {@code target} para {@code receiver}. */
     public static void sync(ServerPlayerEntity target, ServerPlayerEntity receiver) {
