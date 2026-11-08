@@ -33,6 +33,17 @@ import java.util.UUID;
 public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntity, PlayerEntityModel<AbstractClientPlayerEntity>> {
     private final Map<UUID, Vector3f> drag = new HashMap<>();
 
+    // ---- pupila ("pupil"): segue a câmera sem sair da janela da casca do focinho ----
+    // A janela da casca tem 6x6px e a pupila 4x4px (centrada). Pelo desenho da textura, a borda de cima é opaca
+    // e só os cantos de baixo são opacos, então a pupila pode ir 1px para os lados OU 1px para baixo (não para cima).
+    private static final float PUPIL_MAX_X = 1.0f;     // px para os lados
+    private static final float PUPIL_MAX_DOWN = 1.0f;  // px para baixo
+    private static final float PUPIL_MAX_UP = 0.0f;    // px para cima (a borda opaca de cima impede)
+    private static final float PUPIL_GAIN = 1.4f;      // sensibilidade: atinge o limite em ~45° de ângulo
+    private static final float PUPIL_SMOOTH = 0.3f;    // suavização por frame
+    private final Map<UUID, float[]> gaze = new HashMap<>();
+
+
     public ZombieFormFeature(FeatureRendererContext<AbstractClientPlayerEntity, PlayerEntityModel<AbstractClientPlayerEntity>> ctx) {
         super(ctx);
     }
@@ -61,7 +72,7 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
         for (Chain c : model.chains) solve(model, c, t, agitation, d, ik);
 
         int overlay = LivingEntityRenderer.getOverlay(pl, 0.0f);
-        for (int root : model.roots) renderBone(model, root, m, vcp, light, overlay, ik);
+        for (int root : model.roots) renderBone(model, root, m, vcp, light, overlay, ik, pl.getUuid());
     }
 
     // ------------------------------------------------------------------ render
@@ -80,7 +91,7 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
     }
 
     private void renderBone(ZombieFormModel model, int idx, MatrixStack m, VertexConsumerProvider vcp,
-                            int light, int overlay, Quaternionf[] ik) {
+                            int light, int overlay, Quaternionf[] ik, UUID id) {
         Bone b = model.bones.get(idx);
         m.push();
         ModelPart v = b.parent < 0 ? vanilla(b.name) : null;
@@ -95,6 +106,7 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
             m.multiply(b.staticRot);
         }
         if (ik[idx] != null) m.multiply(ik[idx]);
+        if (b.name.startsWith("pupil")) applyPupilGaze(m, id);
 
         if (!b.quads.isEmpty()) {
             MatrixStack.Entry e = m.peek();
@@ -118,8 +130,34 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
                 }
             }
         }
-        for (int c : b.children) renderBone(model, c, m, vcp, light, overlay, ik);
+        for (int c : b.children) renderBone(model, c, m, vcp, light, overlay, ik, id);
         m.pop();
+    }
+
+    /**
+     * Desloca a pupila (só translação no plano da pupila; nenhuma rotação) na direção da câmera.
+     * A posição da câmera no espaço local do bone sai da inversa da matriz atual (a câmera é a origem do espaço de view).
+     */
+    private void applyPupilGaze(MatrixStack m, UUID id) {
+        Vector3f cam = new Matrix4f(m.peek().getPositionMatrix()).invert().transformPosition(new Vector3f());
+        float len = cam.length();
+        float tx = 0f, ty = 0f;
+        if (len > 1e-4f) {
+            tx = MathHelper.clamp(cam.x / len * PUPIL_GAIN, -1f, 1f);
+            ty = MathHelper.clamp(cam.y / len * PUPIL_GAIN, -1f, 1f); // +y local = para baixo
+        }
+        // sem sobreposição com a casca: move-se no eixo dominante (lado OU baixo)
+        if (Math.abs(tx) >= Math.max(0f, ty)) ty = 0f;
+        else tx = 0f;
+        float goalX = tx * PUPIL_MAX_X;
+        float goalY = ty >= 0 ? ty * PUPIL_MAX_DOWN : ty * PUPIL_MAX_UP;
+
+        float[] cur = gaze.computeIfAbsent(id, k -> new float[2]);
+        cur[0] += (goalX - cur[0]) * PUPIL_SMOOTH;
+        cur[1] += (goalY - cur[1]) * PUPIL_SMOOTH;
+        cur[0] = MathHelper.clamp(cur[0], -PUPIL_MAX_X, PUPIL_MAX_X);
+        cur[1] = MathHelper.clamp(cur[1], -PUPIL_MAX_UP, PUPIL_MAX_DOWN);
+        m.translate(cur[0] / 16f, cur[1] / 16f, 0f);
     }
 
     // ------------------------------------------------------------------ IK (FABRIK)

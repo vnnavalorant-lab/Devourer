@@ -13,3 +13,6 @@ Requer Java 17 e Fabric API 0.92.2+1.20.1.
 ## Comandos
 - `/infectado on` / `/infectado off` — liga/desliga o modelo zombie_form que cobre o jogador (off = skin vanilla completa, sem partes escondidas).
 - `/devorar limpar` — remove as partes de outros mobs coladas no corpo e todos os poderes adquiridos (o modelo zombie_form não é afetado).
+
+## Pupila
+O bone `pupil` do modelo segue a câmera (só translação no plano da pupila, sem rotação). Os limites ficam em `ZombieFormFeature.java` (`PUPIL_MAX_*`) e foram calculados pela janela da casca do focinho: se você redesenhar o olho, ajuste esses valores.
