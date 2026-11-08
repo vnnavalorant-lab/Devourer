@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "devourer",
+  "version": "${version}",
+  "name": "Devourer",
+  "description": "Devore o que você mata: partes das criaturas ficam presas no seu corpo e você absorve o poder de cada espécie.",
+  "authors": [
+    "Você"
+  ],
+  "license": "MIT",
+  "icon": "assets/devourer/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.devourer.DevourerMod"
+    ],
+    "client": [
+      "com.devourer.client.DevourerClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.14.21",
+    "minecraft": "~1.20.1",
+    "java": ">=17",
+    "fabric-api": "*"
+  }
+}
