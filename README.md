@@ -9,3 +9,7 @@
 
 Build: `./gradlew build` → `build/libs/devourer-1.0.0.jar` (ou rode o workflow `.github/workflows/build.yml` no GitHub).
 Requer Java 17 e Fabric API 0.92.2+1.20.1.
+
+## Comandos
+- `/infectado on` / `/infectado off` — liga/desliga o modelo zombie_form que cobre o jogador (off = skin vanilla completa, sem partes escondidas).
+- `/devorar limpar` — remove as partes de outros mobs coladas no corpo e todos os poderes adquiridos (o modelo zombie_form não é afetado).

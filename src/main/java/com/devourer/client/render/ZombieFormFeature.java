@@ -41,7 +41,7 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
     public void render(MatrixStack m, VertexConsumerProvider vcp, int light, AbstractClientPlayerEntity pl,
                        float limbAngle, float limbDistance, float tickDelta, float animationProgress,
                        float headYaw, float headPitch) {
-        if (pl.isInvisible() || pl.isSpectator()) return;
+        if (pl.isInvisible() || pl.isSpectator() || !com.devourer.client.ClientData.isInfected(pl.getUuid())) return;
         ZombieFormModel model = ZombieFormModel.get();
         float t = pl.age + tickDelta;
 

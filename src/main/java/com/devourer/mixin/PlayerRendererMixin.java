@@ -22,6 +22,7 @@ public abstract class PlayerRendererMixin {
     @Inject(method = "setModelPose", at = @At("TAIL"), require = 0)
     private void devourer$hideParts(AbstractClientPlayerEntity player, CallbackInfo ci) {
         if (player.isSpectator() || player.isInvisible()) return;
+        if (!com.devourer.client.ClientData.isInfected(player.getUuid())) return; // /infectado off: skin vanilla completa
         PlayerEntityModel<AbstractClientPlayerEntity> m = ((PlayerEntityRenderer) (Object) this).getModel();
 
         m.leftArm.visible = false;

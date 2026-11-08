@@ -17,6 +17,8 @@ public class PlayerDevour {
     /** ids das espécies cujo poder já foi absorvido (1 por espécie). */
     public final Set<String> powers = new LinkedHashSet<>();
     public int selected = 0;
+    /** Modelo zombie_form sobre o jogador (comando /infectado on|off). */
+    public boolean infected = true;
 
     public NbtCompound toNbt() {
         NbtCompound n = new NbtCompound();
@@ -27,6 +29,7 @@ public class PlayerDevour {
         for (String s : powers) wl.add(NbtString.of(s));
         n.put("powers", wl);
         n.putInt("selected", selected);
+        n.putBoolean("infected", infected);
         return n;
     }
 
@@ -37,6 +40,7 @@ public class PlayerDevour {
         NbtList wl = n.getList("powers", NbtElement.STRING_TYPE);
         for (int i = 0; i < wl.size(); i++) d.powers.add(wl.getString(i));
         d.selected = n.getInt("selected");
+        d.infected = !n.contains("infected") || n.getBoolean("infected");
         return d;
     }
 }
