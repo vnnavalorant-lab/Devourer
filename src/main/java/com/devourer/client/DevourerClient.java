@@ -6,7 +6,7 @@ import com.devourer.Net;
 import com.devourer.PlayerDevour;
 import com.devourer.client.particle.BloodParticle;
 import com.devourer.client.render.DevourFeature;
-import com.devourer.client.render.ShadowFeature;
+import com.devourer.client.render.ZombieFormFeature;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -57,7 +57,7 @@ public class DevourerClient implements ClientModInitializer {
         LivingEntityFeatureRendererRegistrationCallback.EVENT.register((type, renderer, helper, ctx) -> {
             if (renderer instanceof PlayerEntityRenderer pr) {
                 helper.register(new DevourFeature(pr));
-                helper.register(new ShadowFeature(pr));
+                helper.register(new ZombieFormFeature(pr));
             }
         });
     }
