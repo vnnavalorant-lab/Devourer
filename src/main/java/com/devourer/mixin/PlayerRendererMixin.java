@@ -11,13 +11,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Esconde as partes vanilla que o modelo zombie_form substitui:
  *  - braço esquerdo e perna direita (o modelo tem versões mutantes/segmentadas delas);
- *  - a segunda camada da skin (chapéu, jaqueta, mangas, calças), que ficava por cima do modelo.
- * A primeira camada da skin original continua visível por baixo do modelo.
+ *  - opcionalmente a segunda camada da skin (HIDE_SECOND_LAYER; agora desligado, então ela aparece).
+ * A manga esquerda e a calça direita continuam escondidas porque pertencem aos membros que o modelo substitui.
  */
 @Mixin(PlayerEntityRenderer.class)
 public abstract class PlayerRendererMixin {
-    /** Coloque false para mostrar a segunda camada da skin (ela vai atravessar o modelo). */
-    private static final boolean HIDE_SECOND_LAYER = true;
+    /** false = segunda camada da skin visível (chapéu, jaqueta, manga direita, calça esquerda). true = escondida. */
+    private static final boolean HIDE_SECOND_LAYER = false;
 
     @Inject(method = "setModelPose", at = @At("TAIL"), require = 0)
     private void devourer$hideParts(AbstractClientPlayerEntity player, CallbackInfo ci) {
