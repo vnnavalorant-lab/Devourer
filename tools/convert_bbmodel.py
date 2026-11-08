@@ -17,8 +17,9 @@ import base64, json, math, os, sys
 SRC = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "zombie_form.bbmodel")
 ROOT = os.path.join(os.path.dirname(__file__), "..", "src", "main", "resources", "assets", "devourer")
 VANILLA = {"Head", "Body", "Right Arm", "Left Arm", "Left Leg", "Right Leg"}
-# Afasta ligeiramente as caixas que coincidem com o corpo do jogador (anti Z-fighting), em pixels.
-LAYER_BIAS = 0.2
+# Sem afastamento geométrico: ele escondia camadas finas do modelo (pupilas, olhos).
+# O anti Z-fighting contra o corpo do jogador é feito no render (camada com offset de profundidade).
+LAYER_BIAS = 0
 
 j = json.load(open(SRC))
 elements = {e["uuid"]: e for e in j["elements"]}

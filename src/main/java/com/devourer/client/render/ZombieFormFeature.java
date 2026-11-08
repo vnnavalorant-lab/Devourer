@@ -27,7 +27,8 @@ import java.util.UUID;
  * Renderiza o modelo zombie_form POR CIMA da skin original do jogador.
  * - Head/Body/Arms/Legs seguem os ModelParts do jogador (andar, mirar, agachar...).
  * - Os tentáculos usam FABRIK (IK) em direção a um alvo animado, então dobram e se mexem de verdade.
- * - Anti Z-fighting: as caixas que coincidem com o corpo já saem afastadas 0.2px do conversor.
+ * - Anti Z-fighting: usa a RenderLayer das armaduras (offset de profundidade em direção à câmera), então
+ *   faces coplanares com o corpo vanilla sempre vencem, sem deformar as camadas finas do modelo.
  */
 public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntity, PlayerEntityModel<AbstractClientPlayerEntity>> {
     private final Map<UUID, Vector3f> drag = new HashMap<>();
@@ -104,7 +105,7 @@ public class ZombieFormFeature extends FeatureRenderer<AbstractClientPlayerEntit
             for (Quad q : b.quads) {
                 if (q.tex != cur) {
                     cur = q.tex;
-                    vc = vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(model.textures[cur]));
+                    vc = vcp.getBuffer(RenderLayer.getArmorCutoutNoCull(model.textures[cur]));
                 }
                 for (int k = 0; k < 4; k++) {
                     vc.vertex(pm, q.p[k * 3] / 16f, q.p[k * 3 + 1] / 16f, q.p[k * 3 + 2] / 16f)

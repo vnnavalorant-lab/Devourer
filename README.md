@@ -3,7 +3,7 @@
 - Matou uma criatura → uma parte aleatória dela (cabeça, braço, perna, tronco, cauda, olho, mandíbula) fica presa ao seu corpo (máx. 14).
 - Cada espécie devorada dá 1 poder (só 1 por espécie). Poderes especiais: creeper, skeleton, zombie, enderman, blaze, ghast, spider, slime, witch, golem, wolf, phantom, guardian etc. Qualquer outra espécie dá uma "Essência" com buff passivo + pulso.
 - Teclas: **V** usa o poder selecionado, **B** troca de poder (configurável).
-- Visual: o modelo `tools/zombie_form.bbmodel` é desenhado POR CIMA da skin normal do jogador (textura `zombie_skin.png`), seguindo andar/mira/agachar. Os tentáculos (marcadores `ik`, `ik2`, `ik3`, `ik4`) são animados por IK: se mexem e dobram dentro do jogo.
+- Visual: o modelo `tools/zombie_form.bbmodel` é desenhado POR CIMA da skin normal do jogador (textura `zombie_skin.png`), seguindo andar/mira/agachar. Partes vanilla escondidas: braço esquerdo, perna direita e a 2ª camada da skin. Os tentáculos (marcadores `ik`, `ik2`, `ik3`, `ik4`) são animados por IK: se mexem e dobram dentro do jogo.
 - Editou o modelo no Blockbench? Rode `python3 tools/convert_bbmodel.py` para regenerar `models/zombie_form.json` e as texturas.
 - Partículas: apenas sangue com gravidade que forma poças planas no chão.
 

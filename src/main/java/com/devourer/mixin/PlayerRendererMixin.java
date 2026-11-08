@@ -9,16 +9,31 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * O braço esquerdo do modelo zombie_form é mutante e substitui o braço esquerdo vanilla,
- * então o vanilla é escondido (o resto da skin original continua visível por baixo do modelo).
+ * Esconde as partes vanilla que o modelo zombie_form substitui:
+ *  - braço esquerdo e perna direita (o modelo tem versões mutantes/segmentadas delas);
+ *  - a segunda camada da skin (chapéu, jaqueta, mangas, calças), que ficava por cima do modelo.
+ * A primeira camada da skin original continua visível por baixo do modelo.
  */
 @Mixin(PlayerEntityRenderer.class)
 public abstract class PlayerRendererMixin {
+    /** Coloque false para mostrar a segunda camada da skin (ela vai atravessar o modelo). */
+    private static final boolean HIDE_SECOND_LAYER = true;
+
     @Inject(method = "setModelPose", at = @At("TAIL"), require = 0)
-    private void devourer$hideLeftArm(AbstractClientPlayerEntity player, CallbackInfo ci) {
+    private void devourer$hideParts(AbstractClientPlayerEntity player, CallbackInfo ci) {
         if (player.isSpectator() || player.isInvisible()) return;
-        PlayerEntityModel<AbstractClientPlayerEntity> model = ((PlayerEntityRenderer) (Object) this).getModel();
-        model.leftArm.visible = false;
-        model.leftSleeve.visible = false;
+        PlayerEntityModel<AbstractClientPlayerEntity> m = ((PlayerEntityRenderer) (Object) this).getModel();
+
+        m.leftArm.visible = false;
+        m.leftSleeve.visible = false;
+        m.rightLeg.visible = false;
+        m.rightPants.visible = false;
+
+        if (HIDE_SECOND_LAYER) {
+            m.hat.visible = false;
+            m.jacket.visible = false;
+            m.rightSleeve.visible = false;
+            m.leftPants.visible = false;
+        }
     }
 }
