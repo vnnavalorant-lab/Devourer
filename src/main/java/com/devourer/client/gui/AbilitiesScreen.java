@@ -31,7 +31,7 @@ import java.util.Set;
  */
 public class AbilitiesScreen extends Screen {
     private static final Identifier GUI_TEX = new Identifier("devourer", "textures/gui/tentacle_gui.png");
-    private static final int TEX_SIZE = 728;   // textura HD (91 px originais x 8)
+    private static final int TEX_SIZE = 91;    // arte original, desenhada em múltiplos inteiros (nítida)
     private static final int IMG_PX = 91;      // lado da arte original, usado nas coordenadas abaixo
 
     // Faixas de texto dentro da parte escura da boca (coordenadas na arte de 91x91): início Y, altura e limites X de cada linha.
@@ -72,14 +72,15 @@ public class AbilitiesScreen extends Screen {
             }
         }
 
-        // textura HD com filtro linear: fica suave, sem pixelar
+        // filtro 'nearest': pixel art nítida, sem borrar
         try {
-            mc.getTextureManager().getTexture(GUI_TEX).setFilter(true, false);
+            mc.getTextureManager().getTexture(GUI_TEX).setFilter(false, false);
         } catch (Throwable ignored) {
         }
 
         int top = 32;
-        guiSize = Math.max(120, Math.min(height - top - 8, (int) (width * 0.62)));
+        int maxSize = Math.min(height - top - 8, (int) (width * 0.62));
+        guiSize = IMG_PX * Math.max(1, maxSize / IMG_PX); // múltiplo inteiro: cada pixel da arte vira N px exatos
         guiX = 8;
         guiY = top + Math.max(0, (height - top - 8 - guiSize) / 2);
         detX = guiX + guiSize + 6;
@@ -198,7 +199,7 @@ public class AbilitiesScreen extends Screen {
                 Text.literal("Habilidades funcionais (" + shown.size() + ")").formatted(Formatting.GRAY),
                 width / 2, 19, 0xFFAAAAAA);
 
-        // GUI em HD (textura 728x728 desenhada reduzida, com filtro linear)
+        // GUI (arte 91x91 ampliada em escala inteira, nítida)
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         ctx.drawTexture(GUI_TEX, guiX, guiY, guiSize, guiSize, 0, 0, TEX_SIZE, TEX_SIZE, TEX_SIZE, TEX_SIZE);
