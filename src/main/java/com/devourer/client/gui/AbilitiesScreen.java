@@ -7,10 +7,10 @@ import com.devourer.client.gui.AbilityData.Ability;
 import com.devourer.client.gui.AbilityData.Category;
 import com.devourer.tentacle.Catalog;
 import com.devourer.tentacle.TentacleAbility;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
@@ -25,11 +25,20 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Tela com todas as habilidades mutantes: lista à esquerda (por categoria) e detalhes à direita.
- * Roda do mouse rola a lista ou o texto; setas cima/baixo trocam a habilidade selecionada.
+ * Tela das habilidades funcionais: a lista fica DENTRO da parte escura da GUI (textura HD tentacle_gui.png)
+ * e os detalhes da habilidade selecionada aparecem no painel à direita.
+ * Roda do mouse rola o texto; setas cima/baixo trocam a habilidade selecionada.
  */
 public class AbilitiesScreen extends Screen {
-    private static final int ENTRY_H = 14;
+    private static final Identifier GUI_TEX = new Identifier("devourer", "textures/gui/tentacle_gui.png");
+    private static final int TEX_SIZE = 728;   // textura HD (91 px originais x 8)
+    private static final int IMG_PX = 91;      // lado da arte original, usado nas coordenadas abaixo
+
+    // Faixas de texto dentro da parte escura da boca (coordenadas na arte de 91x91): início Y, altura e limites X de cada linha.
+    private static final float BAND_Y0 = 30f, BAND_H = 3.3f;
+    private static final float[] BAND_L = {18.5f, 19.5f, 21.5f, 23.5f, 26.5f, 29.5f, 35.5f, 38.5f, 44.5f};
+    private static final float[] BAND_R = {47.5f, 47.5f, 49.5f, 51.5f, 55.5f, 55.5f, 61.5f, 67.5f, 67.5f};
+
     private static final int LINE_H = 10;
     private static final int GREEN = 0xFF55FF55;
 
@@ -40,13 +49,12 @@ public class AbilitiesScreen extends Screen {
     private final Set<String> owned = new HashSet<>();
     private PlayerDevour mine = new PlayerDevour();
 
-    private int catIndex = 0; // 0 = Todas
     private List<Ability> shown = new ArrayList<>();
     private int selected = 0;
-    private double listScroll = 0, detailScroll = 0;
+    private double detailScroll = 0;
     private final List<Line> lines = new ArrayList<>();
 
-    private int listX, listY, listW, listH, detX, detY, detW, detH;
+    private int guiX, guiY, guiSize, detX, detY, detW, detH;
 
     public AbilitiesScreen() {
         super(Text.literal("Habilidades mutantes"));
@@ -64,43 +72,27 @@ public class AbilitiesScreen extends Screen {
             }
         }
 
-        // abas de categoria (quebram em mais linhas se faltar largura)
-        int bw = 74, bh = 18, gap = 2;
-        int perRow = Math.max(1, (width - 20) / (bw + gap));
-        int total = data.categories.size() + 1;
-        int rows = (total + perRow - 1) / perRow;
-        for (int i = 0; i < total; i++) {
-            final int idx = i;
-            int row = i / perRow, col = i % perRow;
-            String name = i == 0 ? "Todas" : data.categories.get(i - 1).name();
-            Text label = i == catIndex ? Text.literal(name).formatted(Formatting.YELLOW) : Text.literal(name);
-            addDrawableChild(ButtonWidget.builder(label, b -> {
-                catIndex = idx;
-                selected = 0;
-                listScroll = 0;
-                detailScroll = 0;
-                clearAndInit();
-            }).dimensions(10 + col * (bw + gap), 34 + row * (bh + gap), bw, bh).build());
+        // textura HD com filtro linear: fica suave, sem pixelar
+        try {
+            mc.getTextureManager().getTexture(GUI_TEX).setFilter(true, false);
+        } catch (Throwable ignored) {
         }
 
-        int top = 34 + rows * (bh + gap) + 6;
-        listX = 10;
-        listY = top;
-        listW = MathHelper.clamp(width / 3, 120, 190);
-        listH = height - top - 10;
-        detX = listX + listW + 8;
+        int top = 32;
+        guiSize = Math.max(120, Math.min(height - top - 8, (int) (width * 0.62)));
+        guiX = 8;
+        guiY = top + Math.max(0, (height - top - 8 - guiSize) / 2);
+        detX = guiX + guiSize + 6;
         detY = top;
-        detW = width - detX - 10;
-        detH = listH;
+        detW = Math.max(60, width - detX - 8);
+        detH = height - top - 8;
 
         rebuildShown();
         rebuildLines();
     }
 
     private void rebuildShown() {
-        shown = new ArrayList<>();
-        String cat = catIndex == 0 ? null : data.categories.get(catIndex - 1).id();
-        for (Ability a : data.abilities) if (cat == null || a.cat().equals(cat)) shown.add(a);
+        shown = new ArrayList<>(data.abilities);
         selected = MathHelper.clamp(selected, 0, Math.max(0, shown.size() - 1));
     }
 
@@ -109,7 +101,7 @@ public class AbilitiesScreen extends Screen {
     /** Combinadas exigem todos os mobs; as demais, qualquer um. */
     private boolean available(Ability a) {
         if (a.mobs().isEmpty()) return false;
-        boolean all = a.cat().equals("combinadas");
+        boolean all = false;
         int have = 0;
         for (String m : a.mobs()) if (owned.contains(m)) have++;
         return all ? have == a.mobs().size() : have > 0;
@@ -148,7 +140,7 @@ public class AbilitiesScreen extends Screen {
 
         List<String> names = new ArrayList<>();
         for (String m : a.mobs()) names.add(mobName(m) + (owned.contains(m) ? " ✔" : ""));
-        String all = a.cat().equals("combinadas") ? " (precisa de todos)" : " (qualquer um)";
+        String all = " (qualquer um)";
         if (available(a)) wrap("Você tem os membros necessários no corpo.", GREEN);
         else wrap("Ainda não disponível: devore " + String.join(", ", names) + all + ".", 0xFFFF8855);
 
@@ -160,10 +152,8 @@ public class AbilitiesScreen extends Screen {
                 case PRESS -> "aperte a tecla de uso";
                 case TOGGLE -> "aperte a tecla de uso para ligar/desligar";
             };
-            wrap("FUNCIONAL EM JOGO. Nível atual: " + lvl + "/3 (cada mob diferente da lista abaixo que você devorou sobe 1 nível). "
+            wrap("Nível atual: " + lvl + "/3 (cada mob diferente da lista abaixo que você devorou sobe 1 nível). "
                     + "Selecione com V (ou a tecla \"anterior\") e " + how + " (padrão R).", lvl > 0 ? GREEN : 0xFFFF8855);
-        } else {
-            wrap("Ainda só catálogo: esta habilidade não é executada em jogo.", 0xFF888888);
         }
 
         section("Origem anatômica", a.origin());
@@ -192,32 +182,51 @@ public class AbilitiesScreen extends Screen {
 
     // ------------------------------------------------------------------ render
 
+    private float k() {
+        return guiSize / (float) IMG_PX;
+    }
+
+    private float bandTop(int i) {
+        return guiY + (BAND_Y0 + i * BAND_H) * k();
+    }
+
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         renderBackground(ctx);
         ctx.drawCenteredTextWithShadow(textRenderer, title, width / 2, 8, 0xFFFFFFFF);
         ctx.drawCenteredTextWithShadow(textRenderer,
-                Text.literal("Catálogo de habilidades — as de tentáculo (9) já funcionam em jogo; as demais ainda são só catálogo").formatted(Formatting.GRAY),
-                width / 2, 20, 0xFFAAAAAA);
+                Text.literal("Habilidades funcionais (" + shown.size() + ")").formatted(Formatting.GRAY),
+                width / 2, 19, 0xFFAAAAAA);
 
-        // lista
-        ctx.fill(listX, listY, listX + listW, listY + listH, 0xAA000000);
-        double maxList = Math.max(0, shown.size() * ENTRY_H - listH);
-        listScroll = MathHelper.clamp(listScroll, 0, maxList);
-        ctx.enableScissor(listX, listY, listX + listW, listY + listH);
-        for (int i = 0; i < shown.size(); i++) {
-            int y = listY + i * ENTRY_H - (int) listScroll;
-            if (y + ENTRY_H < listY || y > listY + listH) continue;
+        // GUI em HD (textura 728x728 desenhada reduzida, com filtro linear)
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        ctx.drawTexture(GUI_TEX, guiX, guiY, guiSize, guiSize, 0, 0, TEX_SIZE, TEX_SIZE, TEX_SIZE, TEX_SIZE);
+
+        // lista dentro da parte escura
+        float k = k();
+        for (int i = 0; i < shown.size() && i < BAND_L.length; i++) {
             Ability a = shown.get(i);
-            boolean hover = mouseX >= listX && mouseX < listX + listW && mouseY >= y && mouseY < y + ENTRY_H;
-            if (i == selected) ctx.fill(listX, y, listX + listW, y + ENTRY_H, 0x88AA2222);
-            else if (hover) ctx.fill(listX, y, listX + listW, y + ENTRY_H, 0x44FFFFFF);
+            float x0 = guiX + BAND_L[i] * k, x1 = guiX + BAND_R[i] * k;
+            float y0 = bandTop(i), h = BAND_H * k;
+            boolean hover = mouseX >= x0 && mouseX < x1 && mouseY >= y0 && mouseY < y0 + h;
+            if (i == selected) ctx.fill((int) x0, (int) y0, (int) x1, (int) (y0 + h), 0x99AA2222);
+            else if (hover) ctx.fill((int) x0, (int) y0, (int) x1, (int) (y0 + h), 0x44FFFFFF);
+
             boolean ok = available(a);
-            ctx.drawText(textRenderer, ok ? "●" : "○", listX + 4, y + 3, ok ? GREEN : 0xFF777777, false);
-            String name = textRenderer.trimToWidth(a.name(), listW - 20);
-            ctx.drawText(textRenderer, name, listX + 14, y + 3, i == selected ? 0xFFFFFFFF : 0xFFCCCCCC, false);
+            String label = "\u25CF " + a.name();
+            float natural = textRenderer.getWidth(label);
+            float sc = Math.min(Math.min(0.85f, (h * 0.85f) / 8f), ((x1 - x0) - 4f) / natural);
+            sc = Math.max(sc, 0.3f);
+            float ty = y0 + (h - 8f * sc) / 2f + 0.5f;
+            ctx.getMatrices().push();
+            ctx.getMatrices().translate(x0 + 2f, ty, 0);
+            ctx.getMatrices().scale(sc, sc, 1f);
+            ctx.drawText(textRenderer, "\u25CF", 0, 0, ok ? GREEN : 0xFF777777, false);
+            ctx.drawText(textRenderer, a.name(), textRenderer.getWidth("\u25CF "), 0,
+                    i == selected ? 0xFFFFFFFF : 0xFFCCCCCC, false);
+            ctx.getMatrices().pop();
         }
-        ctx.disableScissor();
 
         // detalhes
         ctx.fill(detX, detY, detX + detW, detY + detH, 0xAA000000);
@@ -244,18 +253,21 @@ public class AbilitiesScreen extends Screen {
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (super.mouseClicked(mx, my, button)) return true;
-        if (mx >= listX && mx < listX + listW && my >= listY && my < listY + listH) {
-            int idx = (int) ((my - listY + listScroll) / ENTRY_H);
-            if (idx >= 0 && idx < shown.size()) select(idx);
-            return true;
+        float k = k();
+        for (int i = 0; i < shown.size() && i < BAND_L.length; i++) {
+            float x0 = guiX + BAND_L[i] * k, x1 = guiX + BAND_R[i] * k;
+            float y0 = bandTop(i);
+            if (mx >= x0 && mx < x1 && my >= y0 && my < y0 + BAND_H * k) {
+                select(i);
+                return true;
+            }
         }
         return false;
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double amount) {
-        if (mx < detX) listScroll -= amount * ENTRY_H * 2;
-        else detailScroll -= amount * LINE_H * 3;
+        detailScroll -= amount * LINE_H * 3;
         return true;
     }
 
@@ -276,10 +288,6 @@ public class AbilitiesScreen extends Screen {
         if (idx < 0 || idx >= shown.size()) return;
         selected = idx;
         rebuildLines();
-        // mantém o item selecionado visível na lista
-        int top = idx * ENTRY_H;
-        if (top < listScroll) listScroll = top;
-        else if (top + ENTRY_H > listScroll + listH) listScroll = top + ENTRY_H - listH;
     }
 
     @Override
